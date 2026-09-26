@@ -5,10 +5,15 @@
  * - iniciar(): arranca la escucha (debe llamarse tras un toque del usuario).
  * - pausar():  detiene la escucha (se usa mientras el avatar habla, para que no se oiga a sí mismo).
  * - reanudar(): vuelve a escuchar.
- * - onFrase(texto): callback que recibe cada frase final reconocida.
+ * - onFrase(texto): callback que recibe cada frase COMPLETA.
  *
- * El navegador corta la escucha continua cada cierto tiempo; aquí se reinicia sola
- * mientras esté activa y no pausada.
+ * Una frase se considera completa tras SILENCIO_MS sin resultados nuevos.
+ * Mientras tanto, los trozos que el navegador va marcando como finales se
+ * acumulan (Chrome, sobre todo en Android, marca como final cada trozo corto
+ * y además repite el texto acumulado; aquí se evita duplicarlo).
+ *
+ * El navegador corta la escucha continua cada cierto tiempo; se reinicia sola
+ * mientras esté activa y no pausada, sin perder lo acumulado.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -18,6 +23,23 @@ const SpeechRecognition =
     : null;
 
 export const escuchaSoportada = Boolean(SpeechRecognition);
+
+const SILENCIO_MS = 3000;
+
+const normalizar = (t) => t.toLowerCase().replace(/\s+/g, " ").trim();
+
+// Une dos trozos evitando duplicados cuando el navegador repite texto acumulado
+function unir(base, nuevo) {
+  const b = base.trim();
+  const n = nuevo.trim();
+  if (!n) return b;
+  if (!b) return n;
+  const nb = normalizar(b);
+  const nn = normalizar(n);
+  if (nn.startsWith(nb)) return n; // el nuevo trae todo lo anterior + más
+  if (nb.endsWith(nn) || nb.includes(nn)) return b; // repetido
+  return `${b} ${n}`;
+}
 
 export default function useEscucha({ onFrase, idioma = "es-CL" } = {}) {
   const [escuchando, setEscuchando] = useState(false);
@@ -30,9 +52,44 @@ export default function useEscucha({ onFrase, idioma = "es-CL" } = {}) {
   const onFraseRef = useRef(onFrase);
   const reinicioRef = useRef(null);
 
+  // Acumulación de la frase en curso
+  const previoRef = useRef(""); // texto de sesiones de reconocimiento anteriores (tras cortes del navegador)
+  const sesionFinalRef = useRef(""); // finales de la sesión actual
+  const sesionParcialRef = useRef(""); // parcial de la sesión actual
+  const ignorarHastaRef = useRef(0); // índice de resultados ya enviados en esta sesión
+  const silencioRef = useRef(null);
+
   useEffect(() => {
     onFraseRef.current = onFrase;
   }, [onFrase]);
+
+  const textoEnCurso = () =>
+    unir(unir(previoRef.current, sesionFinalRef.current), sesionParcialRef.current);
+
+  const limpiarFrase = useCallback(() => {
+    clearTimeout(silencioRef.current);
+    previoRef.current = "";
+    sesionFinalRef.current = "";
+    sesionParcialRef.current = "";
+    setParcial("");
+  }, []);
+
+  const enviarFrase = useCallback(() => {
+    const texto = textoEnCurso().trim();
+    limpiarFrase();
+    if (texto && !pausadaRef.current && onFraseRef.current) {
+      onFraseRef.current(texto);
+    }
+  }, [limpiarFrase]);
+
+  const programarEnvio = useCallback(() => {
+    clearTimeout(silencioRef.current);
+    silencioRef.current = setTimeout(() => {
+      // Marca como enviados los resultados de esta sesión
+      if (recRef.current) ignorarHastaRef.current = Number.MAX_SAFE_INTEGER;
+      enviarFrase();
+    }, SILENCIO_MS);
+  }, [enviarFrase]);
 
   const arrancar = useCallback(() => {
     const rec = recRef.current;
@@ -53,23 +110,34 @@ export default function useEscucha({ onFrase, idioma = "es-CL" } = {}) {
     rec.interimResults = true;
     rec.maxAlternatives = 1;
 
-    rec.onstart = () => setEscuchando(true);
+    rec.onstart = () => {
+      setEscuchando(true);
+      ignorarHastaRef.current = 0;
+      sesionFinalRef.current = "";
+      sesionParcialRef.current = "";
+    };
 
     rec.onresult = (evento) => {
-      let textoParcial = "";
-      for (let i = evento.resultIndex; i < evento.results.length; i += 1) {
-        const resultado = evento.results[i];
-        const texto = resultado[0].transcript.trim();
-        if (resultado.isFinal) {
-          setParcial("");
-          if (texto && !pausadaRef.current && onFraseRef.current) {
-            onFraseRef.current(texto);
-          }
-        } else {
-          textoParcial += `${texto} `;
-        }
+      if (pausadaRef.current) return;
+
+      // Resultados ya enviados en esta sesión (escritorio mantiene la lista completa)
+      if (ignorarHastaRef.current === Number.MAX_SAFE_INTEGER) {
+        ignorarHastaRef.current = evento.resultIndex;
       }
-      if (textoParcial) setParcial(textoParcial.trim());
+
+      let finales = "";
+      let parciales = "";
+      for (let i = ignorarHastaRef.current; i < evento.results.length; i += 1) {
+        const resultado = evento.results[i];
+        const texto = resultado[0].transcript;
+        if (resultado.isFinal) finales = unir(finales, texto);
+        else parciales = unir(parciales, texto);
+      }
+
+      sesionFinalRef.current = finales;
+      sesionParcialRef.current = parciales;
+      setParcial(textoEnCurso());
+      programarEnvio();
     };
 
     rec.onerror = (evento) => {
@@ -84,6 +152,13 @@ export default function useEscucha({ onFrase, idioma = "es-CL" } = {}) {
 
     rec.onend = () => {
       setEscuchando(false);
+      // Conserva lo dicho en esta sesión para la frase en curso
+      if (!pausadaRef.current) {
+        previoRef.current = textoEnCurso();
+      }
+      sesionFinalRef.current = "";
+      sesionParcialRef.current = "";
+
       if (activaRef.current && !pausadaRef.current) {
         clearTimeout(reinicioRef.current);
         reinicioRef.current = setTimeout(arrancar, 250);
@@ -95,6 +170,7 @@ export default function useEscucha({ onFrase, idioma = "es-CL" } = {}) {
     return () => {
       activaRef.current = false;
       clearTimeout(reinicioRef.current);
+      clearTimeout(silencioRef.current);
       rec.onend = null;
       try {
         rec.abort();
@@ -103,31 +179,33 @@ export default function useEscucha({ onFrase, idioma = "es-CL" } = {}) {
       }
       recRef.current = null;
     };
-  }, [idioma, arrancar]);
+  }, [idioma, arrancar, programarEnvio]);
 
   const iniciar = useCallback(() => {
     setError(null);
     activaRef.current = true;
     pausadaRef.current = false;
+    limpiarFrase();
     arrancar();
-  }, [arrancar]);
+  }, [arrancar, limpiarFrase]);
 
   const pausar = useCallback(() => {
     pausadaRef.current = true;
     clearTimeout(reinicioRef.current);
-    setParcial("");
+    limpiarFrase();
     try {
       recRef.current?.abort();
     } catch {
       // sin acción
     }
-  }, []);
+  }, [limpiarFrase]);
 
   const reanudar = useCallback(() => {
     pausadaRef.current = false;
+    limpiarFrase();
     clearTimeout(reinicioRef.current);
     reinicioRef.current = setTimeout(arrancar, 300);
-  }, [arrancar]);
+  }, [arrancar, limpiarFrase]);
 
   return { escuchando, parcial, error, iniciar, pausar, reanudar };
 }
