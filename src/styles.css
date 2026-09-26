@@ -365,3 +365,255 @@ body {
   border-radius: 999px;
   padding: 3px 10px;
 }
+
+/* ================= Avatar para personas ================= */
+
+.escenario__avatar--chico {
+  width: min(42vw, 200px);
+  max-height: 28vh;
+}
+
+/* Tarjetas */
+.tarjeta {
+  width: 100%;
+  max-width: 560px;
+  background: #ffffff;
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+
+.tarjeta__titulo {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.tarjeta__texto {
+  margin: 6px 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--gris-texto);
+  text-align: center;
+}
+
+.tarjeta ul {
+  margin: 4px 0 10px;
+  padding-left: 20px;
+  line-height: 1.5;
+}
+
+.tarjeta--plegable summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--azul);
+}
+
+.tarjeta--plegable[open] summary {
+  margin-bottom: 8px;
+}
+
+/* Texto de evidencia */
+.evidencia h3 {
+  margin: 14px 0 4px;
+  font-size: 15px;
+  color: var(--navy);
+}
+
+.evidencia p {
+  margin: 4px 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.evidencia__fuentes {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--borde);
+  font-size: 13px;
+  color: var(--gris-texto);
+}
+
+/* Botones */
+.boton {
+  font: inherit;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 12px 24px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.boton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.boton:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.boton--primario {
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--azul), var(--turquesa));
+  box-shadow: 0 6px 18px rgba(20, 163, 154, 0.25);
+}
+
+.boton--secundario {
+  color: var(--navy);
+  background: #ffffff;
+  border-color: var(--borde);
+}
+
+.boton--grande {
+  font-size: 17px;
+  padding: 14px 36px;
+}
+
+.acciones {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.acciones--centro {
+  justify-content: center;
+  margin-top: 0;
+}
+
+/* Formulario */
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.formulario__fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gris-texto);
+}
+
+.campo input,
+.campo select,
+.campo textarea {
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--navy);
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.campo input:focus,
+.campo select:focus,
+.campo textarea:focus {
+  outline: 2px solid var(--turquesa);
+  outline-offset: 1px;
+}
+
+.campo__error {
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Propuesta */
+.propuesta__nota {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--gris-texto);
+  font-style: italic;
+}
+
+/* Checklist de resonancia */
+.checklist__todo-no {
+  margin: 4px 0 12px;
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.checklist__lista {
+  list-style: none;
+  padding: 0 !important;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checklist__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--fondo);
+}
+
+.checklist__item--falta {
+  outline: 2px solid #f5c2c2;
+}
+
+.checklist__pregunta {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.checklist__opciones {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.opcion {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 48px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--borde);
+  background: #ffffff;
+  color: var(--gris-texto);
+  cursor: pointer;
+}
+
+.opcion--si {
+  background: #fdecec;
+  border-color: #e5a3a3;
+  color: #9b2c2c;
+}
+
+.opcion--no {
+  background: var(--turquesa-claro);
+  border-color: var(--turquesa);
+  color: var(--navy);
+}
+
+@media (max-width: 420px) {
+  .formulario__fila {
+    grid-template-columns: 1fr;
+  }
+
+  .checklist__item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  }
