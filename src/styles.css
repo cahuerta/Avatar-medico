@@ -353,3 +353,15 @@ body {
     transition: none !important;
   }
 }
+
+.dialogo__region {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--turquesa);
+  background: var(--turquesa-claro);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
