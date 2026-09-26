@@ -1,20 +1,55 @@
 /**
  * App.jsx
- * Ciclo del avatar: escuchar → entender → repetir lo escuchado → volver a escuchar.
+ * Ciclo del avatar: escuchar → preguntar al backend → responder en voz → volver a escuchar.
  *
- * Etapa 1 (solo frontend): la médica repite lo que entendió.
- * Etapa 2: en `responder()` se reemplaza el eco por la llamada al backend.
+ * - Al abrir la página hace un ping al backend para despertarlo y precargar materiales.
+ * - Cada frase escuchada se envía a POST /avatar/preguntar.
+ *
+ * Variable de entorno (Vercel):
+ *   VITE_API_URL  URL del backend del avatar, sin "/" final.
  */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Avatar from "./Avatar.jsx";
 import useEscucha, { escuchaSoportada } from "./useEscucha.js";
 import useVoz, { vozSoportada } from "./useVoz.js";
 
 const SALUDO = "Hola, soy la asistente de Hipokratia. Te escucho.";
 
-// Punto de conexión futura con el backend. Hoy: eco.
+const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+
+// Espera larga: si el servidor estaba dormido, puede tardar en despertar
+const TIMEOUT_PREGUNTA_MS = 90000;
+
+const FRASE_ERROR_CONEXION = "Tuve un problema para conectarme. Intenta de nuevo en un momento.";
+
+function despertarServidor() {
+  if (!API_URL) return;
+  fetch(`${API_URL}/ping`).catch(() => {
+    // Sin acción: si falla, la primera pregunta volverá a intentarlo
+  });
+}
+
 async function responder(texto) {
-  return `Entendí: ${texto}`;
+  if (!API_URL) {
+    return { respuesta: "Falta configurar la conexión con el servidor.", region: null };
+  }
+  const controlador = new AbortController();
+  const limite = setTimeout(() => controlador.abort(), TIMEOUT_PREGUNTA_MS);
+  try {
+    const res = await fetch(`${API_URL}/avatar/preguntar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pregunta: texto }),
+      signal: controlador.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const datos = await res.json();
+    return { respuesta: datos.respuesta || FRASE_ERROR_CONEXION, region: datos.region || null };
+  } catch {
+    return { respuesta: FRASE_ERROR_CONEXION, region: null };
+  } finally {
+    clearTimeout(limite);
+  }
 }
 
 const ETIQUETA_ESTADO = {
@@ -30,6 +65,11 @@ export default function App() {
   const [pensando, setPensando] = useState(false);
   const [ultimaPregunta, setUltimaPregunta] = useState("");
   const [ultimaRespuesta, setUltimaRespuesta] = useState("");
+  const [ultimaRegion, setUltimaRegion] = useState(null);
+
+  useEffect(() => {
+    despertarServidor();
+  }, []);
 
   const ocupadaRef = useRef(false);
   const { hablar, desbloquear, hablando, boca } = useVoz();
@@ -51,11 +91,13 @@ export default function App() {
       ocupadaRef.current = true;
       setOcupada(true);
       setUltimaPregunta(texto);
+      setUltimaRegion(null);
 
       escuchaRef.current?.pausar();
       setPensando(true);
-      const respuesta = await responder(texto);
+      const { respuesta, region } = await responder(texto);
       setPensando(false);
+      setUltimaRegion(region);
 
       await decir(respuesta);
 
@@ -140,10 +182,11 @@ export default function App() {
             <div className="dialogo__fila dialogo__fila--avatar">
               <span className="dialogo__rotulo">Respuesta</span>
               <p className="dialogo__texto">{ultimaRespuesta}</p>
+              {ultimaRegion && <span className="dialogo__region">Región: {ultimaRegion}</span>}
             </div>
           </section>
         )}
       </main>
     </div>
   );
-}
+      }
